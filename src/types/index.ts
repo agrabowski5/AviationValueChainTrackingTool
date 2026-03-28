@@ -48,7 +48,7 @@ export type AppNode = Node<AppNodeData>;
 export interface ValueChainEdgeData {
   type: 'valueChain';
   label: string;
-  direction: 'upstream' | 'downstream';
+  direction: 'upstream' | 'downstream' | 'parallel' | 'bidirectional' | 'lateral' | 'custom';
   color: string;
   width: number;
   animated: boolean;

@@ -3,6 +3,37 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { EntityNodeData } from '../../types';
 import { DynamicIcon } from '../../utils/icons';
 
+// Generate evenly-spaced handles along each side
+function makeSideHandles(position: Position, count: number, side: string) {
+  const handles = [];
+  for (let i = 0; i < count; i++) {
+    const pct = ((i + 1) / (count + 1)) * 100;
+    const style =
+      position === Position.Top || position === Position.Bottom
+        ? { left: `${pct}%` }
+        : { top: `${pct}%` };
+    handles.push(
+      <Handle
+        key={`${side}-tgt-${i}`}
+        type="target"
+        position={position}
+        id={`${side}-tgt-${i}`}
+        className="handle-dot"
+        style={style}
+      />,
+      <Handle
+        key={`${side}-src-${i}`}
+        type="source"
+        position={position}
+        id={`${side}-src-${i}`}
+        className="handle-dot"
+        style={style}
+      />,
+    );
+  }
+  return handles;
+}
+
 function EntityNodeComponent({ data, selected }: NodeProps) {
   const d = data as unknown as EntityNodeData;
   const color = d.borderColor || '#6b7280';
@@ -19,14 +50,11 @@ function EntityNodeComponent({ data, selected }: NodeProps) {
           : `0 2px 10px rgba(0,0,0,0.1)`,
       }}
     >
-      <Handle type="target" position={Position.Top} id="top" className="handle-dot" />
-      <Handle type="source" position={Position.Top} id="top-src" className="handle-dot" />
-      <Handle type="target" position={Position.Bottom} id="bottom" className="handle-dot" />
-      <Handle type="source" position={Position.Bottom} id="bottom-src" className="handle-dot" />
-      <Handle type="target" position={Position.Left} id="left" className="handle-dot" />
-      <Handle type="source" position={Position.Left} id="left-src" className="handle-dot" />
-      <Handle type="target" position={Position.Right} id="right" className="handle-dot" />
-      <Handle type="source" position={Position.Right} id="right-src" className="handle-dot" />
+      {/* 3 handles per side = 12 total connection points */}
+      {makeSideHandles(Position.Top, 3, 'top')}
+      {makeSideHandles(Position.Bottom, 3, 'bottom')}
+      {makeSideHandles(Position.Left, 3, 'left')}
+      {makeSideHandles(Position.Right, 3, 'right')}
 
       <div className="entity-header" style={{ borderBottomColor: `${color}30` }}>
         <div className="entity-icon" style={{ backgroundColor: `${color}20` }}>

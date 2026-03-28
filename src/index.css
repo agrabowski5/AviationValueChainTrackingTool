@@ -363,6 +363,23 @@ body {
   color: var(--text-primary);
 }
 
+.toolbar-btn-full.accent {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent);
+}
+
+.toolbar-btn-full.accent:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.chain-dir-symbol {
+  font-size: 16px;
+  font-weight: 700;
+  width: 20px;
+  text-align: center;
+}
+
 .toolbar-btn-row {
   display: flex;
   gap: 4px;

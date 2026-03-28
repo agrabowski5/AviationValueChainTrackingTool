@@ -73,6 +73,7 @@ interface AppState {
   updateEdgeData: (id: string, data: Partial<AppEdgeData>) => void;
   removeNode: (id: string) => void;
   removeEdge: (id: string) => void;
+  insertEntityOnEdge: (edgeId: string, preset: { label: string; icon: string; color: string; borderColor: string }) => void;
 
   // actions – selection
   selectNode: (id: string | null) => void;
@@ -168,6 +169,63 @@ export const useStore = create<AppState>((set, get) => ({
       edges: get().edges.filter((e) => e.id !== id),
       selectedEdgeId: get().selectedEdgeId === id ? null : get().selectedEdgeId,
     }),
+
+  // Insert a new entity node in the middle of an existing edge, splitting it in two
+  insertEntityOnEdge: (edgeId, preset) => {
+    const edge = get().edges.find((e) => e.id === edgeId);
+    if (!edge) return;
+
+    const sourceNode = get().nodes.find((n) => n.id === edge.source);
+    const targetNode = get().nodes.find((n) => n.id === edge.target);
+    if (!sourceNode || !targetNode) return;
+
+    const newNodeId = uid();
+    const midX = (sourceNode.position.x + targetNode.position.x) / 2;
+    const midY = (sourceNode.position.y + targetNode.position.y) / 2;
+
+    const newNode: AppNode = {
+      id: newNodeId,
+      type: 'entity',
+      position: { x: midX, y: midY },
+      data: {
+        type: 'entity',
+        label: preset.label,
+        entityType: preset.label,
+        icon: preset.icon,
+        color: preset.color,
+        borderColor: preset.borderColor,
+        metadata: {},
+        description: '',
+      } as AppNodeData,
+    };
+
+    // Create two new edges that inherit the original edge's styling
+    const edgeData = edge.data ? structuredClone(edge.data) : undefined;
+    const edge1: AppEdge = {
+      id: uid(),
+      source: edge.source,
+      target: newNodeId,
+      sourceHandle: edge.sourceHandle,
+      type: edge.type,
+      data: edgeData ? { ...edgeData } as AppEdgeData : undefined,
+    };
+    const edge2: AppEdge = {
+      id: uid(),
+      source: newNodeId,
+      target: edge.target,
+      targetHandle: edge.targetHandle,
+      type: edge.type,
+      data: edgeData ? { ...edgeData } as AppEdgeData : undefined,
+    };
+
+    set({
+      nodes: [...get().nodes, newNode],
+      edges: [...get().edges.filter((e) => e.id !== edgeId), edge1, edge2],
+      selectedNodeId: newNodeId,
+      selectedEdgeId: null,
+      propertiesPanelOpen: true,
+    });
+  },
 
   // ── selection ─────────────────────────────────────────────────
   selectNode: (id) => set({ selectedNodeId: id, selectedEdgeId: null, propertiesPanelOpen: id !== null }),

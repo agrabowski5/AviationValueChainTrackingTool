@@ -260,10 +260,14 @@ function ValueChainEdgeProperties({
       <select
         className="prop-select"
         value={data.direction}
-        onChange={(e) => onChange({ direction: e.target.value as 'upstream' | 'downstream' })}
+        onChange={(e) => onChange({ direction: e.target.value as any })}
       >
         <option value="upstream">Upstream</option>
         <option value="downstream">Downstream</option>
+        <option value="parallel">Parallel</option>
+        <option value="bidirectional">Bidirectional</option>
+        <option value="lateral">Lateral</option>
+        <option value="custom">Custom</option>
       </select>
 
       <label className="prop-label">CO₂ Flow (tonnes)</label>
