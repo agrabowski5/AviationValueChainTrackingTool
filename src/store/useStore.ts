@@ -73,6 +73,7 @@ interface AppState {
   updateEdgeData: (id: string, data: Partial<AppEdgeData>) => void;
   removeNode: (id: string) => void;
   removeEdge: (id: string) => void;
+  reconnectEdge: (oldEdge: AppEdge, newConnection: Connection) => void;
   insertEntityOnEdge: (edgeId: string, preset: { label: string; icon: string; color: string; borderColor: string }) => void;
 
   // actions – selection
@@ -169,6 +170,22 @@ export const useStore = create<AppState>((set, get) => ({
       edges: get().edges.filter((e) => e.id !== id),
       selectedEdgeId: get().selectedEdgeId === id ? null : get().selectedEdgeId,
     }),
+
+  reconnectEdge: (oldEdge, newConnection) => {
+    set({
+      edges: get().edges.map((e) =>
+        e.id === oldEdge.id
+          ? {
+              ...e,
+              source: newConnection.source,
+              target: newConnection.target,
+              sourceHandle: newConnection.sourceHandle ?? undefined,
+              targetHandle: newConnection.targetHandle ?? undefined,
+            }
+          : e
+      ),
+    });
+  },
 
   // Insert a new entity node in the middle of an existing edge, splitting it in two
   insertEntityOnEdge: (edgeId, preset) => {

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -7,8 +7,11 @@ import {
   BackgroundVariant,
   type NodeTypes,
   type EdgeTypes,
+  type Edge,
+  type Connection,
   ConnectionMode,
   useReactFlow,
+  reconnectEdge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -37,8 +40,10 @@ function FlowCanvas() {
     onNodesChange, onEdgesChange, onConnect,
     selectNode, selectEdge,
     loadFromStorage,
+    setEdges,
   } = useStore();
   const { fitView } = useReactFlow();
+  const edgeReconnectSuccessful = useRef(true);
 
   useEffect(() => {
     loadFromStorage();
@@ -60,6 +65,23 @@ function FlowCanvas() {
     selectEdge(null);
   }, [selectNode, selectEdge]);
 
+  const onReconnectStart = useCallback(() => {
+    edgeReconnectSuccessful.current = false;
+  }, []);
+
+  const onReconnect = useCallback((oldEdge: Edge, newConnection: Connection) => {
+    edgeReconnectSuccessful.current = true;
+    setEdges(reconnectEdge(oldEdge, newConnection, edges) as any);
+  }, [edges, setEdges]);
+
+  const onReconnectEnd = useCallback((_: MouseEvent | TouchEvent, edge: Edge) => {
+    if (!edgeReconnectSuccessful.current) {
+      // Edge was dragged off into empty space — remove it
+      setEdges(edges.filter((e) => e.id !== edge.id));
+    }
+    edgeReconnectSuccessful.current = true;
+  }, [edges, setEdges]);
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -72,6 +94,9 @@ function FlowCanvas() {
       onNodeClick={handleNodeClick}
       onEdgeClick={handleEdgeClick}
       onPaneClick={handlePaneClick}
+      onReconnectStart={onReconnectStart}
+      onReconnect={onReconnect}
+      onReconnectEnd={onReconnectEnd}
       connectionMode={ConnectionMode.Loose}
       snapToGrid
       snapGrid={[20, 20]}

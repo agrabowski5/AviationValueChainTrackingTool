@@ -16,6 +16,7 @@ function PropertiesPanelComponent() {
     propertiesPanelOpen,
     updateNodeData, updateEdgeData,
     selectNode, selectEdge,
+    removeEdge, removeNode,
   } = useStore();
 
   if (!propertiesPanelOpen) return null;
@@ -24,6 +25,11 @@ function PropertiesPanelComponent() {
   const selectedEdge = edges.find((e) => e.id === selectedEdgeId);
 
   if (!selectedNode && !selectedEdge) return null;
+
+  // Get all edges connected to the selected node
+  const connectedEdges = selectedNode
+    ? edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id)
+    : [];
 
   return (
     <div className="properties-panel">
@@ -47,25 +53,132 @@ function PropertiesPanelComponent() {
           />
         )}
         {selectedNode && selectedNode.data.type === 'entity' && (
-          <EntityNodeProperties
-            data={selectedNode.data as unknown as EntityNodeData}
-            onChange={(d) => updateNodeData(selectedNode.id, d)}
+          <>
+            <EntityNodeProperties
+              data={selectedNode.data as unknown as EntityNodeData}
+              onChange={(d) => updateNodeData(selectedNode.id, d)}
+            />
+            {/* Delete node button */}
+            <div className="prop-divider" />
+            <button
+              className="prop-danger-btn"
+              onClick={() => removeNode(selectedNode.id)}
+            >
+              <Trash2 size={14} />
+              <span>Delete Entity</span>
+            </button>
+          </>
+        )}
+
+        {/* Connections list for selected node */}
+        {selectedNode && connectedEdges.length > 0 && (
+          <ConnectionsList
+            nodeId={selectedNode.id}
+            connectedEdges={connectedEdges}
+            nodes={nodes}
+            onDeleteEdge={removeEdge}
+            onSelectEdge={selectEdge}
           />
         )}
+
         {selectedEdge && (selectedEdge.data as any)?.type === 'valueChain' && (
-          <ValueChainEdgeProperties
-            data={selectedEdge.data as unknown as ValueChainEdgeData}
-            onChange={(d) => updateEdgeData(selectedEdge.id, d)}
-          />
+          <>
+            <ValueChainEdgeProperties
+              data={selectedEdge.data as unknown as ValueChainEdgeData}
+              onChange={(d) => updateEdgeData(selectedEdge.id, d)}
+            />
+            <div className="prop-divider" />
+            <button
+              className="prop-danger-btn"
+              onClick={() => removeEdge(selectedEdge.id)}
+            >
+              <Trash2 size={14} />
+              <span>Delete Connection</span>
+            </button>
+          </>
         )}
         {selectedEdge && (selectedEdge.data as any)?.type === 'relationship' && (
-          <RelationshipEdgeProperties
-            data={selectedEdge.data as unknown as RelationshipEdgeData}
-            onChange={(d) => updateEdgeData(selectedEdge.id, d)}
-          />
+          <>
+            <RelationshipEdgeProperties
+              data={selectedEdge.data as unknown as RelationshipEdgeData}
+              onChange={(d) => updateEdgeData(selectedEdge.id, d)}
+            />
+            <div className="prop-divider" />
+            <button
+              className="prop-danger-btn"
+              onClick={() => removeEdge(selectedEdge.id)}
+            >
+              <Trash2 size={14} />
+              <span>Delete Connection</span>
+            </button>
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+// ── Connections list for a node ─────────────────────────────────
+function ConnectionsList({
+  nodeId,
+  connectedEdges,
+  nodes,
+  onDeleteEdge,
+  onSelectEdge,
+}: {
+  nodeId: string;
+  connectedEdges: any[];
+  nodes: any[];
+  onDeleteEdge: (id: string) => void;
+  onSelectEdge: (id: string) => void;
+}) {
+  const getNodeLabel = (id: string) => {
+    const node = nodes.find((n: any) => n.id === id);
+    return (node?.data as any)?.label || id;
+  };
+
+  return (
+    <>
+      <div className="prop-divider" />
+      <h3 className="prop-title">Connections ({connectedEdges.length})</h3>
+      <div className="connections-list">
+        {connectedEdges.map((edge) => {
+          const isSource = edge.source === nodeId;
+          const otherNodeId = isSource ? edge.target : edge.source;
+          const edgeLabel = (edge.data as any)?.label || 'Untitled';
+          const edgeType = (edge.data as any)?.type || 'relationship';
+          const dirArrow = isSource ? '→' : '←';
+
+          return (
+            <div key={edge.id} className="connection-row">
+              <button
+                className="connection-info"
+                onClick={() => onSelectEdge(edge.id)}
+                title="Click to edit this connection"
+              >
+                <span className="connection-dir">{dirArrow}</span>
+                <span className="connection-label">{edgeLabel}</span>
+                <span className="connection-target">{getNodeLabel(otherNodeId)}</span>
+                <span className={`connection-type ${edgeType}`}>
+                  {edgeType === 'valueChain' ? 'chain' : 'rel'}
+                </span>
+              </button>
+              <button
+                className="connection-delete"
+                onClick={() => onDeleteEdge(edge.id)}
+                title="Delete this connection"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="connection-hint">
+        Drag edge endpoints on the canvas to reconnect to different ports.
+        Drop into empty space to delete.
+      </div>
+    </>
   );
 }
 
