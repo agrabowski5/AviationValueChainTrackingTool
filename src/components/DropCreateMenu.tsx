@@ -2,9 +2,9 @@ import { memo, useState } from 'react';
 import { DynamicIcon } from '../utils/icons';
 import { ENTITY_PRESETS, type EntityPreset } from '../types';
 
-type ChainDirection = 'upstream' | 'downstream' | 'parallel' | 'bidirectional' | 'lateral' | 'custom';
+export type ChainDirection = 'upstream' | 'downstream' | 'parallel' | 'bidirectional' | 'lateral' | 'custom';
 
-interface ConnectionTypeOption {
+export interface ConnectionTypeOption {
   type: 'valueChain' | 'relationship';
   direction?: ChainDirection;
   label: string;
@@ -12,7 +12,7 @@ interface ConnectionTypeOption {
   symbol: string;
 }
 
-const CONNECTION_OPTIONS: ConnectionTypeOption[] = [
+export const CONNECTION_OPTIONS: ConnectionTypeOption[] = [
   { type: 'valueChain', direction: 'upstream',      label: 'Upstream Chain',      color: '#f59e0b', symbol: '←' },
   { type: 'valueChain', direction: 'downstream',    label: 'Downstream Chain',    color: '#3b82f6', symbol: '→' },
   { type: 'valueChain', direction: 'parallel',      label: 'Parallel Chain',      color: '#10b981', symbol: '⇄' },
@@ -22,6 +22,7 @@ const CONNECTION_OPTIONS: ConnectionTypeOption[] = [
   { type: 'relationship',                           label: 'Relationship',         color: '#94a3b8', symbol: '┄' },
 ];
 
+// Result when creating a new node + edge
 export interface DropCreateResult {
   entityPreset: EntityPreset;
   connectionType: 'valueChain' | 'relationship';
@@ -29,24 +30,54 @@ export interface DropCreateResult {
   connectionColor: string;
 }
 
-interface DropCreateMenuProps {
+// Result when just picking a connection type between existing nodes
+export interface ConnectionTypeResult {
+  connectionType: 'valueChain' | 'relationship';
+  direction?: ChainDirection;
+  connectionColor: string;
+}
+
+// ── Mode: connect two existing nodes (connection type only) ─────
+interface ConnectMenuProps {
+  mode: 'connect';
+  position: { x: number; y: number };
+  onSelect: (result: ConnectionTypeResult) => void;
+  onCancel: () => void;
+}
+
+// ── Mode: drop into empty space (connection type + entity) ──────
+interface CreateMenuProps {
+  mode: 'create';
   position: { x: number; y: number };
   onSelect: (result: DropCreateResult) => void;
   onCancel: () => void;
 }
 
-function DropCreateMenuComponent({ position, onSelect, onCancel }: DropCreateMenuProps) {
+type DropCreateMenuProps = ConnectMenuProps | CreateMenuProps;
+
+function DropCreateMenuComponent(props: DropCreateMenuProps) {
+  const { mode, position, onCancel } = props;
   const [step, setStep] = useState<'connection' | 'entity'>('connection');
   const [selectedConnection, setSelectedConnection] = useState<ConnectionTypeOption | null>(null);
 
   const handleConnectionSelect = (option: ConnectionTypeOption) => {
-    setSelectedConnection(option);
-    setStep('entity');
+    if (mode === 'connect') {
+      // Existing-to-existing: just return the connection type
+      (props as ConnectMenuProps).onSelect({
+        connectionType: option.type,
+        direction: option.direction,
+        connectionColor: option.color,
+      });
+    } else {
+      // Creating a new node: move to entity selection
+      setSelectedConnection(option);
+      setStep('entity');
+    }
   };
 
   const handleEntitySelect = (preset: EntityPreset) => {
-    if (!selectedConnection) return;
-    onSelect({
+    if (!selectedConnection || mode !== 'create') return;
+    (props as CreateMenuProps).onSelect({
       entityPreset: preset,
       connectionType: selectedConnection.type,
       direction: selectedConnection.direction,
@@ -54,7 +85,6 @@ function DropCreateMenuComponent({ position, onSelect, onCancel }: DropCreateMen
     });
   };
 
-  // Position the menu so it doesn't overflow viewport
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: Math.min(position.x, window.innerWidth - 260),
@@ -64,12 +94,13 @@ function DropCreateMenuComponent({ position, onSelect, onCancel }: DropCreateMen
 
   return (
     <>
-      {/* Backdrop to catch clicks outside */}
       <div className="drop-menu-backdrop" onClick={onCancel} />
       <div className="drop-menu" style={menuStyle}>
         {step === 'connection' && (
           <>
-            <div className="drop-menu-header">Connection Type</div>
+            <div className="drop-menu-header">
+              {mode === 'connect' ? 'Connection Type' : 'Connection Type'}
+            </div>
             <div className="drop-menu-list">
               {CONNECTION_OPTIONS.map((option) => (
                 <button
@@ -86,7 +117,7 @@ function DropCreateMenuComponent({ position, onSelect, onCancel }: DropCreateMen
             </div>
           </>
         )}
-        {step === 'entity' && (
+        {step === 'entity' && mode === 'create' && (
           <>
             <div className="drop-menu-header">
               <button className="drop-menu-back" onClick={() => setStep('connection')}>

@@ -23,7 +23,11 @@ import { RelationshipEdge } from './components/edges/RelationshipEdge';
 import { Toolbar } from './components/Toolbar';
 import { PropertiesPanel } from './components/PropertiesPanel';
 import { ScenarioPanel } from './components/ScenarioPanel';
-import { DropCreateMenu, type DropCreateResult } from './components/DropCreateMenu';
+import {
+  DropCreateMenu,
+  type DropCreateResult,
+  type ConnectionTypeResult,
+} from './components/DropCreateMenu';
 import type { AppNode, AppEdge, AppNodeData, AppEdgeData } from './types';
 
 const nodeTypes: NodeTypes = {
@@ -43,10 +47,15 @@ interface PendingDrop {
   sourceHandleId: string | null;
 }
 
+interface PendingConnect {
+  screenPos: { x: number; y: number };
+  connection: Connection;
+}
+
 function FlowCanvas() {
   const {
     nodes, edges,
-    onNodesChange, onEdgesChange, onConnect,
+    onNodesChange, onEdgesChange,
     selectNode, selectEdge,
     loadFromStorage,
     setEdges, addNode, addEdge,
@@ -54,7 +63,9 @@ function FlowCanvas() {
   const { fitView, screenToFlowPosition } = useReactFlow();
   const edgeReconnectSuccessful = useRef(true);
   const connectingFrom = useRef<{ nodeId: string; handleId: string | null } | null>(null);
+  const lastConnectEvent = useRef<MouseEvent | TouchEvent | null>(null);
   const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null);
+  const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
 
   useEffect(() => {
     loadFromStorage();
@@ -93,7 +104,7 @@ function FlowCanvas() {
     edgeReconnectSuccessful.current = true;
   }, [edges, setEdges]);
 
-  // ── Drag-to-create: track where the connection started ────────
+  // ── Connection tracking ───────────────────────────────────────
   const onConnectStart = useCallback((_: any, params: { nodeId: string | null; handleId: string | null }) => {
     connectingFrom.current = {
       nodeId: params.nodeId ?? '',
@@ -101,20 +112,40 @@ function FlowCanvas() {
     };
   }, []);
 
+  // Intercept node-to-node connections: show type picker instead of auto-creating
+  const onConnect = useCallback((connection: Connection) => {
+    const evt = lastConnectEvent.current;
+    let clientX = window.innerWidth / 2;
+    let clientY = window.innerHeight / 2;
+    if (evt) {
+      clientX = 'changedTouches' in evt ? evt.changedTouches[0].clientX : evt.clientX;
+      clientY = 'changedTouches' in evt ? evt.changedTouches[0].clientY : evt.clientY;
+    }
+
+    setPendingConnect({
+      screenPos: { x: clientX, y: clientY },
+      connection,
+    });
+  }, []);
+
   const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
+    // Store the event so onConnect can read coordinates
+    lastConnectEvent.current = event;
+
     if (!connectingFrom.current) return;
 
-    // Check if the drop target is the pane (not a handle)
+    // Check if the drop target is the pane (not a node handle)
     const target = event.target as HTMLElement;
     const isPane = target.classList.contains('react-flow__pane')
       || target.closest('.react-flow__pane');
 
     if (!isPane) {
+      // Dropped on a node handle — onConnect will fire, we handle it there
       connectingFrom.current = null;
       return;
     }
 
-    // Get screen coordinates
+    // Dropped into empty space — show create menu
     const clientX = 'changedTouches' in event
       ? event.changedTouches[0].clientX
       : event.clientX;
@@ -134,7 +165,47 @@ function FlowCanvas() {
     connectingFrom.current = null;
   }, [screenToFlowPosition]);
 
-  // ── Handle the menu selection ─────────────────────────────────
+  // ── Handle connection type selection (existing-to-existing) ───
+  const handleConnectTypeSelect = useCallback((result: ConnectionTypeResult) => {
+    if (!pendingConnect) return;
+    const { connection } = pendingConnect;
+    const { connectionType, direction, connectionColor } = result;
+
+    const edgeData: AppEdgeData = connectionType === 'valueChain'
+      ? {
+          type: 'valueChain',
+          label: direction === 'upstream' ? 'Supply'
+            : direction === 'downstream' ? 'Delivery'
+            : 'Flow',
+          direction: direction ?? 'custom',
+          color: connectionColor,
+          width: 3,
+          animated: true,
+        }
+      : {
+          type: 'relationship',
+          label: 'Relationship',
+          description: '',
+          color: connectionColor,
+          width: 2,
+          dashed: true,
+        };
+
+    const edge: AppEdge = {
+      id: crypto.randomUUID(),
+      source: connection.source,
+      target: connection.target,
+      sourceHandle: connection.sourceHandle ?? undefined,
+      targetHandle: connection.targetHandle ?? undefined,
+      type: connectionType,
+      data: edgeData,
+    };
+
+    addEdge(edge);
+    setPendingConnect(null);
+  }, [pendingConnect, addEdge]);
+
+  // ── Handle drop-to-create (new node) ──────────────────────────
   const handleDropCreate = useCallback((result: DropCreateResult) => {
     if (!pendingDrop) return;
 
@@ -160,7 +231,9 @@ function FlowCanvas() {
     const edgeData: AppEdgeData = connectionType === 'valueChain'
       ? {
           type: 'valueChain',
-          label: direction === 'upstream' ? 'Supply' : direction === 'downstream' ? 'Delivery' : 'Flow',
+          label: direction === 'upstream' ? 'Supply'
+            : direction === 'downstream' ? 'Delivery'
+            : 'Flow',
           direction: direction ?? 'custom',
           color: connectionColor,
           width: 3,
@@ -190,8 +263,9 @@ function FlowCanvas() {
     setPendingDrop(null);
   }, [pendingDrop, addNode, addEdge, selectNode]);
 
-  const handleDropCancel = useCallback(() => {
+  const handleCancel = useCallback(() => {
     setPendingDrop(null);
+    setPendingConnect(null);
   }, []);
 
   return (
@@ -217,17 +291,6 @@ function FlowCanvas() {
         snapGrid={[20, 20]}
         fitView
         fitViewOptions={{ padding: 0.3 }}
-        defaultEdgeOptions={{
-          type: 'relationship',
-          data: {
-            type: 'relationship',
-            label: 'Relationship',
-            description: '',
-            color: '#94a3b8',
-            width: 1.5,
-            dashed: true,
-          },
-        }}
         proOptions={{ hideAttribution: true }}
         minZoom={0.05}
         maxZoom={4}
@@ -245,12 +308,23 @@ function FlowCanvas() {
         />
       </ReactFlow>
 
-      {/* Drop-to-create context menu */}
+      {/* Connection type picker for existing-to-existing */}
+      {pendingConnect && (
+        <DropCreateMenu
+          mode="connect"
+          position={pendingConnect.screenPos}
+          onSelect={handleConnectTypeSelect}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {/* Drop-to-create: connection type + entity picker */}
       {pendingDrop && (
         <DropCreateMenu
+          mode="create"
           position={pendingDrop.screenPos}
           onSelect={handleDropCreate}
-          onCancel={handleDropCancel}
+          onCancel={handleCancel}
         />
       )}
     </>
