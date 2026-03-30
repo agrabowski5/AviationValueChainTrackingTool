@@ -94,6 +94,11 @@ interface AppState {
   deleteScenario: (id: string) => void;
   duplicateScenario: (id: string) => void;
 
+  // export / import
+  exportScenario: (id: string) => void;
+  exportAllScenarios: () => void;
+  importScenarios: (json: string) => void;
+
   // persistence
   loadFromStorage: () => void;
   saveToStorage: () => void;
@@ -329,6 +334,55 @@ export const useStore = create<AppState>((set, get) => ({
     };
     set({ scenarios: [...get().scenarios, dup] });
     get().saveToStorage();
+  },
+
+  // ── export / import ───────────────────────────────────────────
+  exportScenario: (id) => {
+    const scenario = get().scenarios.find((s) => s.id === id);
+    if (!scenario) return;
+    const blob = new Blob(
+      [JSON.stringify({ version: 1, scenarios: [scenario] }, null, 2)],
+      { type: 'application/json' }
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${scenario.name.replace(/[^a-zA-Z0-9-_ ]/g, '')}.valuechain.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  exportAllScenarios: () => {
+    const { scenarios } = get();
+    if (scenarios.length === 0) return;
+    const blob = new Blob(
+      [JSON.stringify({ version: 1, scenarios }, null, 2)],
+      { type: 'application/json' }
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `all-scenarios-${new Date().toISOString().slice(0, 10)}.valuechain.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  importScenarios: (json) => {
+    try {
+      const data = JSON.parse(json);
+      const imported: Scenario[] = data.scenarios ?? [];
+      if (!Array.isArray(imported) || imported.length === 0) return;
+
+      // Assign new IDs to avoid collisions with existing scenarios
+      const existingIds = new Set(get().scenarios.map((s) => s.id));
+      const remapped = imported.map((s) => {
+        if (existingIds.has(s.id)) {
+          return { ...s, id: uid(), name: s.name + ' (imported)' };
+        }
+        return s;
+      });
+
+      set({ scenarios: [...get().scenarios, ...remapped] });
+      get().saveToStorage();
+    } catch { /* invalid JSON */ }
   },
 
   // ── persistence ───────────────────────────────────────────────

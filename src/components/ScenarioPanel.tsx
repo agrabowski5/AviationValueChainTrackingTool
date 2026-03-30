@@ -1,5 +1,5 @@
-import { memo, useState } from 'react';
-import { X, Save, Copy, Trash2, FolderOpen, Plus } from 'lucide-react';
+import { memo, useState, useRef } from 'react';
+import { X, Save, Copy, Trash2, FolderOpen, Plus, Download, Upload } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 function ScenarioPanelComponent() {
@@ -12,11 +12,16 @@ function ScenarioPanelComponent() {
     loadScenario,
     deleteScenario,
     duplicateScenario,
+    exportScenario,
+    exportAllScenarios,
+    importScenarios,
   } = useStore();
 
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [showSaveForm, setShowSaveForm] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!scenarioPanelOpen) return null;
 
@@ -33,6 +38,35 @@ function ScenarioPanelComponent() {
     if (active) {
       saveScenario(active.name, active.description);
     }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = reader.result as string;
+      try {
+        const data = JSON.parse(text);
+        const count = data.scenarios?.length ?? 0;
+        if (count === 0) {
+          setImportMsg('No scenarios found in file.');
+        } else {
+          importScenarios(text);
+          setImportMsg(`Imported ${count} scenario${count > 1 ? 's' : ''}.`);
+        }
+      } catch {
+        setImportMsg('Invalid file format.');
+      }
+      setTimeout(() => setImportMsg(''), 3000);
+    };
+    reader.readAsText(file);
+    // Reset so re-selecting the same file triggers onChange
+    e.target.value = '';
   };
 
   return (
@@ -85,6 +119,38 @@ function ScenarioPanelComponent() {
           </div>
         )}
 
+        {/* Export / Import */}
+        <div className="scenario-actions" style={{ marginTop: 4 }}>
+          <button
+            className="scenario-btn"
+            onClick={exportAllScenarios}
+            disabled={scenarios.length === 0}
+            title="Download all scenarios as a JSON file"
+          >
+            <Download size={14} />
+            <span>Export All</span>
+          </button>
+          <button
+            className="scenario-btn"
+            onClick={handleImportClick}
+            title="Import scenarios from a JSON file"
+          >
+            <Upload size={14} />
+            <span>Import</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,.valuechain.json"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {importMsg && (
+          <div className="scenario-import-msg">{importMsg}</div>
+        )}
+
         {/* Scenario list */}
         <div className="scenario-list">
           {scenarios.length === 0 && (
@@ -116,6 +182,13 @@ function ScenarioPanelComponent() {
                   title="Load"
                 >
                   <FolderOpen size={14} />
+                </button>
+                <button
+                  className="scenario-card-btn"
+                  onClick={() => exportScenario(s.id)}
+                  title="Download"
+                >
+                  <Download size={14} />
                 </button>
                 <button
                   className="scenario-card-btn"

@@ -858,6 +858,22 @@ input[type="range"] {
   border: 1px solid var(--border);
 }
 
+.scenario-import-msg {
+  padding: 6px 10px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.scenario-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .scenario-list {
   display: flex;
   flex-direction: column;
